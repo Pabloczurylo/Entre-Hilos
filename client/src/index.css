@@ -1,0 +1,247 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Palette – Soft Pastel Craft ── */
+    --color-mist: #f4f3f1;
+    --color-peony: #f2d1d4;
+    --color-mauve: #d8959b;
+    --color-sage: #829672;
+    --color-evergreen: #344c3d;
+    --color-text-muted: #627568;
+    --color-card-border: #eedddb;
+    --color-surface-low: #f4f3f1;
+    --color-surface: #faf9f7;
+    --color-surface-white: #ffffff;
+    --color-surface-container: #efeeec;
+    --color-surface-high: #e9e8e6;
+    --color-primary-fixed: #ffdadc;
+    --color-primary-container: #d8959b;
+    --color-secondary-container: #d1e7be;
+    --color-error: #ba1a1a;
+
+    /* ── Shadcn compatible tokens ── */
+    --background: #f4f3f1;
+    --foreground: #344c3d;
+    --card: #ffffff;
+    --card-foreground: #344c3d;
+    --popover: #ffffff;
+    --popover-foreground: #344c3d;
+    --primary: #d8959b;
+    --primary-foreground: #ffffff;
+    --secondary: #829672;
+    --secondary-foreground: #ffffff;
+    --muted: #ebe8e3;
+    --muted-foreground: #627568;
+    --accent: #f2d1d4;
+    --accent-foreground: #344c3d;
+    --destructive: #ba1a1a;
+    --destructive-foreground: #ffffff;
+    --border: #e2ded7;
+    --input: #e2ded7;
+    --ring: #d8959b;
+    --radius: 0.75rem;
+
+    /* ── Shadows ── */
+    --shadow-card: 0px 4px 20px -2px rgba(52, 76, 61, 0.04), 0px 2px 6px -1px rgba(216, 149, 155, 0.06);
+    --shadow-card-hover: 0px 10px 25px -4px rgba(52, 76, 61, 0.08), 0px 4px 10px -2px rgba(216, 149, 155, 0.12);
+    --shadow-nav: 0px 1px 8px rgba(52, 76, 61, 0.04);
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: var(--color-mist);
+    color: var(--color-evergreen);
+    margin: 0;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d6c2c2;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #d8959b;
+  }
+}
+
+@layer components {
+  /* ── Cards ── */
+  .card-craft {
+    @apply bg-white rounded-2xl border border-[#eedddb]/60;
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card-craft:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm text-white transition-all duration-200;
+    background-color: var(--color-mauve);
+  }
+  .btn-primary:hover {
+    background-color: #c98288;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(216, 149, 155, 0.4);
+  }
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm transition-all duration-200;
+    color: var(--color-mauve);
+    border: 1.5px solid var(--color-mauve);
+    background: transparent;
+  }
+  .btn-secondary:hover {
+    background-color: rgba(242, 209, 212, 0.35);
+  }
+
+  .btn-success {
+    @apply inline-flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm text-white transition-all duration-200;
+    background-color: var(--color-sage);
+  }
+  .btn-success:hover {
+    background-color: #718562;
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm transition-all duration-200;
+    color: var(--color-text-muted);
+    background: transparent;
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-surface-high);
+    color: var(--color-evergreen);
+  }
+
+  /* ── Status badges ── */
+  .badge {
+    @apply inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold tracking-wide;
+  }
+  .badge-pendiente {
+    background-color: var(--color-peony);
+    color: var(--color-evergreen);
+  }
+  .badge-tejiendo {
+    background-color: var(--color-mauve);
+    color: #ffffff;
+  }
+  .badge-terminado {
+    background-color: var(--color-sage);
+    color: #ffffff;
+  }
+  .badge-entregado {
+    background-color: var(--color-evergreen);
+    color: #ffffff;
+  }
+
+  /* ── Form inputs ── */
+  .input-craft {
+    @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200;
+    background: #ffffff;
+    border: 1.5px solid #eedddb;
+    color: var(--color-evergreen);
+  }
+  .input-craft::placeholder {
+    color: rgba(98, 117, 104, 0.6);
+  }
+  .input-craft:focus {
+    border-color: var(--color-mauve);
+    box-shadow: 0 0 0 3px rgba(242, 209, 212, 0.5);
+  }
+
+  .label-craft {
+    @apply block text-sm font-semibold mb-1.5 tracking-wide;
+    color: var(--color-evergreen);
+  }
+
+  /* ── Nav item ── */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer;
+    color: var(--color-text-muted);
+  }
+  .nav-item:hover {
+    background-color: var(--color-surface-container);
+    color: var(--color-evergreen);
+  }
+  .nav-item.active {
+    background-color: var(--color-peony);
+    color: var(--color-evergreen);
+    box-shadow: 0 4px 12px rgba(216, 149, 155, 0.2);
+  }
+
+  /* ── Stat card ── */
+  .stat-card {
+    @apply bg-white rounded-2xl p-5 flex items-center justify-between gap-4;
+    border: 1px solid rgba(238, 221, 219, 0.6);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ── Section title ── */
+  .section-title {
+    @apply text-2xl font-bold tracking-tight;
+    color: var(--color-evergreen);
+  }
+}
+
+@layer utilities {
+  .text-muted-craft {
+    color: var(--color-text-muted);
+  }
+  .bg-mist { background-color: var(--color-mist); }
+  .bg-peony { background-color: var(--color-peony); }
+  .text-evergreen { color: var(--color-evergreen); }
+  .text-mauve { color: var(--color-mauve); }
+  .text-sage { color: var(--color-sage); }
+
+  /* Smooth fade-in for pages */
+  .page-enter {
+    animation: fadeSlideIn 0.25s ease forwards;
+  }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Pulse dot */
+  .pulse-dot {
+    animation: pulseDot 2s infinite;
+  }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+}

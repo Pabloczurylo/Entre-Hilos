@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDIENTE
+  TEJIENDO
+  TERMINADO
+  ENTREGADO
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+}
+
+enum TransactionType {
+  INGRESO
+  EGRESO
+}
+
+enum TransactionCategory {
+  SENA_PEDIDO
+  SALDO_PEDIDO
+  VENTA_RAPIDA
+  OTRO_INGRESO
+  INSUMOS
+  PACKAGING
+  FERIA_STAND
+  OTRO_EGRESO
+}
+
+enum QuoteStatus {
+  BORRADOR
+  ACEPTADO
+  RECHAZADO
+  CONVERTIDO_A_PEDIDO
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  catalogItems CatalogItem[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("categories")
+}
+
+model CatalogItem {
+  id             String      @id @default(uuid())
+  name           String
+  description    String?
+  referencePrice Decimal     @db.Decimal(10, 2)
+  estimatedHours Float?
+  categoryId     String
+  category       Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems     OrderItem[]
+  fastSales      FastSale[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("catalog_items")
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  instagram String?
+  whatsapp  String?
+  notes     String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  orderNumber   String?       @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status        OrderStatus   @default(PENDIENTE)
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  depositAmount Decimal       @default(0) @db.Decimal(10, 2)
+  balanceAmount Decimal       @db.Decimal(10, 2)
+  deliveryDate  DateTime?
+  notes         String?
+  items         OrderItem[]
+  transactions  Transaction[]
+  quotes        Quote[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                   String       @id @default(uuid())
+  orderId              String
+  order                Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  catalogItemId        String?
+  catalogItem          CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  name                 String
+  quantity             Int          @default(1)
+  unitPrice            Decimal      @db.Decimal(10, 2)
+  customizationDetails String?      @db.Text
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@map("order_items")
+}
+
+model Quote {
+  id             String      @id @default(uuid())
+  title          String
+  description    String?
+  materialsCost  Decimal     @db.Decimal(10, 2)
+  estimatedHours Float
+  hourlyRate     Decimal     @db.Decimal(10, 2)
+  suggestedPrice Decimal     @db.Decimal(10, 2)
+  status         QuoteStatus @default(BORRADOR)
+  orderId        String?
+  order          Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("quotes")
+}
+
+model FastSale {
+  id            String        @id @default(uuid())
+  description   String
+  catalogItemId String?
+  catalogItem   CatalogItem?  @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  transactionId String?       @unique
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+
+  @@map("fast_sales")
+}
+
+model Transaction {
+  id            String              @id @default(uuid())
+  type          TransactionType
+  category      TransactionCategory
+  amount        Decimal             @db.Decimal(10, 2)
+  paymentMethod PaymentMethod?
+  description   String
+  date          DateTime            @default(now())
+  orderId       String?
+  order         Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  fastSale      FastSale?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@map("transactions")
+}
+
+model AppConfig {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_configs")
+}
