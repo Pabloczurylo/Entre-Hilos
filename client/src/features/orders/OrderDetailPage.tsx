@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Phone,
@@ -9,6 +9,9 @@ import {
   ChevronRight,
   Check,
   Edit2,
+  Calculator,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 
 function InstagramIcon({ size = 12 }: { size?: number }) {
@@ -41,6 +44,7 @@ const ALL_ORDERS = [
   { id: '5', client: 'Mica Torres',    instagram: '@mica.crochet',    whatsapp: undefined,      item: 'Stitch Grande',         category: 'Personajes',         status: 'PENDIENTE' as OrderStatus, dueDate: '12 Oct 2026', totalPrice: 7200,  advancePayment: 3000, createdAt: '21 Sep 2026', notes: '' },
   { id: '6', client: 'Fer Rodríguez',  instagram: undefined,          whatsapp: undefined,      item: 'Ramo Flores Tejidas',   category: 'Flores',             status: 'ENTREGADO' as OrderStatus, dueDate: '15 Sep 2026', totalPrice: 3500,  advancePayment: 3500, createdAt: '01 Sep 2026', notes: '' },
   { id: '7', client: 'Juli Vega',      item: 'Axolote Rosa',          category: 'Personajes',         status: 'ENTREGADO' as OrderStatus, dueDate: '18 Sep 2026', totalPrice: 4800,  advancePayment: 4800, instagram: '@juliv',      createdAt: '05 Sep 2026', notes: '' },
+  { id: '8', client: 'Vale Sánchez',   instagram: '@vale.tejidos',    whatsapp: '1177889900',   item: 'Dragonón Personalizado', category: 'Personajes',         status: 'PENDIENTE' as OrderStatus, dueDate: '20 Oct 2026', totalPrice: 0,     advancePayment: 0,    createdAt: '25 Sep 2026', notes: 'Dragón tipo How to Train Your Dragon, color azul oscuro, tamaño grande. Precio a confirmar con cotizador.' },
 ];
 
 const STATUS_FLOW: OrderStatus[] = ['PENDIENTE', 'TEJIENDO', 'TERMINADO', 'ENTREGADO'];
@@ -51,11 +55,32 @@ function formatARS(n: number) {
 
 export function OrderDetailPage() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const foundOrder = ALL_ORDERS.find(o => o.id === id);
 
   const [status, setStatus] = useState<OrderStatus>(
     foundOrder?.status ?? 'PENDIENTE'
   );
+
+  // Precio propuesto desde el cotizador
+  const appliedPriceParam = searchParams.get('appliedPrice');
+  const appliedPriceRaw = appliedPriceParam ? parseInt(appliedPriceParam, 10) : null;
+
+  // Estado local del precio (simula el apply antes de tener API)
+  const [localPrice, setLocalPrice] = useState<number | null>(null);
+  const [priceAccepted, setPriceAccepted] = useState(false);
+
+  function acceptPrice() {
+    if (!appliedPriceRaw) return;
+    setLocalPrice(appliedPriceRaw);
+    setPriceAccepted(true);
+    // Limpiar el query param sin recargar
+    setSearchParams({}, { replace: true });
+  }
+
+  function dismissPrice() {
+    setSearchParams({}, { replace: true });
+  }
 
   if (!foundOrder) {
     return (
@@ -67,6 +92,9 @@ export function OrderDetailPage() {
   }
 
   const order = foundOrder;
+  // El precio efectivo: el local aplicado, o el original del pedido
+  const effectivePrice = localPrice ?? order.totalPrice;
+
   const payments = [
     { id: 'p1', amount: order.advancePayment, method: 'TRANSFERENCIA' as const, date: order.createdAt, note: 'Seña inicial' },
   ];
@@ -74,8 +102,12 @@ export function OrderDetailPage() {
   const currentIdx = STATUS_FLOW.indexOf(status);
   const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
 
-  const balance = order.totalPrice - order.advancePayment;
-  const paidPercent = Math.round((order.advancePayment / order.totalPrice) * 100);
+  const hasPriceDefined = effectivePrice > 0;
+  const balance = hasPriceDefined ? effectivePrice - order.advancePayment : 0;
+  const paidPercent = hasPriceDefined ? Math.round((order.advancePayment / effectivePrice) * 100) : 0;
+
+  // URL para ir al cotizador con contexto pre-cargado
+  const quoteUrl = `/cotizador?orderId=${order.id}&orderName=${encodeURIComponent(order.item)}&orderClient=${encodeURIComponent(order.client)}`;
 
   const nextLabel: Record<OrderStatus, string> = {
     PENDIENTE: 'Iniciar Tejido',
@@ -215,60 +247,132 @@ export function OrderDetailPage() {
         )}
       </div>
 
+      {/* Banner: precio propuesto por el cotizador */}
+      {appliedPriceRaw && !priceAccepted && (
+        <div className="card-craft p-5 mb-6 border-2 border-mauve/40 bg-peony/10">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-peony flex items-center justify-center flex-shrink-0">
+              <Calculator size={18} className="text-mauve" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-0.5">Precio calculado por el Cotizador</p>
+              <p className="text-2xl font-black text-evergreen">{formatARS(appliedPriceRaw)}</p>
+              <p className="text-xs text-text-muted mt-1">¿Querés aplicar este precio al pedido?</p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button
+              type="button"
+              onClick={acceptPrice}
+              id="btn-confirmar-precio-cotizador"
+              className="btn-primary flex-1 justify-center text-sm"
+            >
+              <CheckCircle2 size={14} />
+              Confirmar precio
+            </button>
+            <button
+              type="button"
+              onClick={dismissPrice}
+              className="btn-secondary text-sm"
+              id="btn-descartar-precio-cotizador"
+            >
+              <X size={14} />
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Banner: precio aceptado exitosamente */}
+      {priceAccepted && localPrice && (
+        <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded-xl bg-secondary-container/60 border border-sage/30">
+          <CheckCircle2 size={16} className="text-sage flex-shrink-0" />
+          <p className="text-sm text-evergreen">
+            <span className="font-bold">Precio actualizado:</span>{' '}
+            <span className="font-semibold text-sage">{formatARS(localPrice)}</span>{' '}
+            aplicado desde el Cotizador
+          </p>
+        </div>
+      )}
+
       {/* Finance card */}
       <div className="card-craft p-6">
         <h2 className="text-base font-bold text-evergreen mb-4">Detalle Financiero</h2>
 
-        {/* Progress */}
-        <div className="mb-5">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-text-muted">Seña abonada</span>
-            <span className="font-bold text-evergreen">{formatARS(order.advancePayment)} / {formatARS(order.totalPrice)}</span>
+        {!hasPriceDefined ? (
+          /* Estado: Precio a confirmar */
+          <div className="flex flex-col items-center gap-4 py-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-peony flex items-center justify-center">
+              <Calculator size={24} className="text-mauve" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-evergreen mb-1">Precio a confirmar</p>
+              <p className="text-xs text-text-muted leading-relaxed max-w-xs">
+                El precio de este pedido aún no fue definido. Usá el Cotizador para calcular el presupuesto y vincularlo a este pedido.
+              </p>
+            </div>
+            <Link
+              to={quoteUrl}
+              className="btn-primary text-sm px-5 py-2.5"
+            >
+              <Calculator size={14} />
+              Cotizar este pedido
+            </Link>
           </div>
-          <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${paidPercent}%`, backgroundColor: '#d8959b' }}
-            />
-          </div>
-          <p className="text-xs text-text-muted mt-1 text-right">{paidPercent}% abonado</p>
-        </div>
-
-        {/* Balance highlight */}
-        <div className={`p-4 rounded-xl flex items-center justify-between mb-5 ${balance > 0 ? 'bg-primary-fixed' : 'bg-secondary-container'}`}>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-on-primary-fixed">
-              {balance > 0 ? 'Saldo restante' : 'Total pagado'}
-            </p>
-            <p className="text-2xl font-bold text-evergreen">{formatARS(balance > 0 ? balance : order.totalPrice)}</p>
-          </div>
-          {balance > 0
-            ? <Banknote size={28} className="text-mauve opacity-60" />
-            : <Check size={28} className="text-sage opacity-80" />
-          }
-        </div>
-
-        {/* Payment history */}
-        <div>
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Historial de pagos</p>
-          <div className="flex flex-col gap-2">
-            {payments.map(p => (
-              <div key={p.id} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
-                <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
-                  {p.method === 'TRANSFERENCIA'
-                    ? <CreditCard size={14} className="text-sage" />
-                    : <Banknote size={14} className="text-sage" />
-                  }
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-evergreen">{p.note}</p>
-                  <p className="text-xs text-text-muted">{p.date} · {p.method.charAt(0) + p.method.slice(1).toLowerCase()}</p>
-                </div>
-                <span className="text-sm font-bold text-sage">+{formatARS(p.amount)}</span>
+        ) : (
+          <>
+            {/* Progress */}
+            <div className="mb-5">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-text-muted">Seña abonada</span>
+                <span className="font-bold text-evergreen">{formatARS(order.advancePayment)} / {formatARS(order.totalPrice)}</span>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${paidPercent}%`, backgroundColor: '#d8959b' }}
+                />
+              </div>
+              <p className="text-xs text-text-muted mt-1 text-right">{paidPercent}% abonado</p>
+            </div>
+
+            {/* Balance highlight */}
+            <div className={`p-4 rounded-xl flex items-center justify-between mb-5 ${balance > 0 ? 'bg-primary-fixed' : 'bg-secondary-container'}`}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-on-primary-fixed">
+                  {balance > 0 ? 'Saldo restante' : 'Total pagado'}
+                </p>
+                <p className="text-2xl font-bold text-evergreen">{formatARS(balance > 0 ? balance : order.totalPrice)}</p>
+              </div>
+              {balance > 0
+                ? <Banknote size={28} className="text-mauve opacity-60" />
+                : <Check size={28} className="text-sage opacity-80" />
+              }
+            </div>
+
+            {/* Payment history */}
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Historial de pagos</p>
+              <div className="flex flex-col gap-2">
+                {payments.map(p => (
+                  <div key={p.id} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                      {p.method === 'TRANSFERENCIA'
+                        ? <CreditCard size={14} className="text-sage" />
+                        : <Banknote size={14} className="text-sage" />
+                      }
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-evergreen">{p.note}</p>
+                      <p className="text-xs text-text-muted">{p.date} · {p.method.charAt(0) + p.method.slice(1).toLowerCase()}</p>
+                    </div>
+                    <span className="text-sm font-bold text-sage">+{formatARS(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Calculator, ArrowRight, Save, TrendingUp, Sliders } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Plus, Trash2, Calculator, ArrowRight, Save, TrendingUp, Sliders, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 // ── Catalog presets ───────────────────────────────────────────────────────
 const CATALOG = [
@@ -70,14 +70,25 @@ function formatARS(n: number) {
 
 export function QuotePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [projectName, setProjectName] = useState('');
+  // Contexto de pedido vinculado (viene por query params)
+  const linkedOrderId = searchParams.get('orderId');
+  const linkedOrderName = searchParams.get('orderName') || '';
+  const linkedOrderClient = searchParams.get('orderClient') || '';
+
+  const [projectName, setProjectName] = useState(linkedOrderName);
   const [selectedPreset, setSelectedPreset] = useState('');
   const [hours, setHours] = useState('');
   const [hourlyRate, setHourlyRate] = useState('2500');
   const [materials, setMaterials] = useState<MaterialLine[]>([
     { id: genId(), desc: 'Lana principal', cost: '' },
   ]);
+
+  // Si cambia el query param (navegación directa), sincronizar
+  useEffect(() => {
+    if (linkedOrderName) setProjectName(linkedOrderName);
+  }, [linkedOrderName]);
 
   // Complexity & margin state
   const [selectedComplexity, setSelectedComplexity] = useState<string>('medio');
@@ -113,10 +124,11 @@ export function QuotePage() {
     const preset = CATALOG.find(c => c.id === id);
     if (!preset) return;
     setSelectedPreset(id);
-    setProjectName(preset.name);
+    // Solo pre-carga el nombre si no hay pedido vinculado
+    if (!linkedOrderId) setProjectName(preset.name);
     setHours(String(preset.baseHours));
     setMaterials([{ id: genId(), desc: 'Materiales estimados', cost: String(preset.baseMaterials) }]);
-  }, []);
+  }, [linkedOrderId]);
 
   function handleSelectComplexity(complexityId: string) {
     setSelectedComplexity(complexityId);
@@ -138,11 +150,28 @@ export function QuotePage() {
     navigate('/pedidos/nuevo');
   }
 
+  // Aplicar el precio calculado al pedido vinculado
+  function handleApplyToOrder() {
+    if (!linkedOrderId || suggested <= 0) return;
+    navigate(`/pedidos/${linkedOrderId}?appliedPrice=${Math.round(suggested)}`);
+  }
+
   const activeLevel = COMPLEXITY_LEVELS.find(c => c.id === selectedComplexity)!;
 
   return (
     <div className="py-8 page-enter">
       <div className="mb-8">
+        {/* Si venimos desde un pedido, mostrar link de volver */}
+        {linkedOrderId ? (
+          <Link
+            to={`/pedidos/${linkedOrderId}`}
+            className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-evergreen font-semibold mb-4 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Volver al pedido
+          </Link>
+        ) : null}
+
         <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-1">
           Herramientas · Presupuestación
         </p>
@@ -153,6 +182,28 @@ export function QuotePage() {
         <p className="text-sm text-text-muted mt-1">
           Calculá el precio sugerido: materiales + (horas × valor hora) + % de ganancia por complejidad
         </p>
+
+        {/* Banner de pedido vinculado */}
+        {linkedOrderId && (
+          <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-secondary-container/50 border-2 border-mauve/30">
+            <div className="w-9 h-9 rounded-full bg-peony flex items-center justify-center flex-shrink-0">
+              <Calculator size={16} className="text-mauve" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Cotizando para pedido</p>
+              <p className="text-sm font-bold text-evergreen truncate">{linkedOrderName}</p>
+              {linkedOrderClient && (
+                <p className="text-xs text-text-muted">Cliente: {linkedOrderClient}</p>
+              )}
+            </div>
+            {suggested > 0 && (
+              <div className="text-right flex-shrink-0">
+                <p className="text-xs text-text-muted">Precio calculado</p>
+                <p className="text-base font-black text-evergreen">{formatARS(suggested)}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -475,15 +526,38 @@ export function QuotePage() {
                 <Save size={14} />
                 Guardar Presupuesto
               </button>
-              <button
-                type="button"
-                onClick={handleCreateOrder}
-                className="btn-primary justify-center"
-                id="btn-iniciar-pedido-desde-cotizador"
-              >
-                Iniciar Pedido con este precio
-                <ArrowRight size={14} />
-              </button>
+
+              {linkedOrderId ? (
+                /* Modo: aplicar precio al pedido existente */
+                <button
+                  type="button"
+                  onClick={handleApplyToOrder}
+                  disabled={suggested <= 0}
+                  className="btn-primary justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  id="btn-aplicar-precio-pedido"
+                >
+                  <CheckCircle2 size={14} />
+                  Aplicar precio al pedido
+                  <ArrowRight size={14} />
+                </button>
+              ) : (
+                /* Modo: iniciar nuevo pedido */
+                <button
+                  type="button"
+                  onClick={handleCreateOrder}
+                  className="btn-primary justify-center"
+                  id="btn-iniciar-pedido-desde-cotizador"
+                >
+                  Iniciar Pedido con este precio
+                  <ArrowRight size={14} />
+                </button>
+              )}
+
+              {linkedOrderId && suggested <= 0 && (
+                <p className="text-xs text-text-muted text-center">
+                  Completá los costos para habilitar
+                </p>
+              )}
             </div>
           </div>
 

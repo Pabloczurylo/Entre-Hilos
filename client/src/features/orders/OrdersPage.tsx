@@ -31,13 +31,14 @@ interface Order {
 
 // ── Mock data ─────────────────────────────────────────────────────────────
 const MOCK_ORDERS: Order[] = [
-  { id: '1', client: 'Sol Ramírez',    item: 'Osito Apego XL',        category: 'Amigurumis General', status: 'TERMINADO',  dueDate: '28 Sep 2026', totalPrice: 5000,  advancePayment: 1500, instagram: '@sol.amis',   createdAt: '10 Sep 2026' },
-  { id: '2', client: 'Dani Fonseca',   item: 'Set Llaveros x3',       category: 'Llaveros',           status: 'TEJIENDO',   dueDate: '01 Oct 2026', totalPrice: 2400,  advancePayment: 600,  whatsapp: '1155667788',   createdAt: '12 Sep 2026' },
-  { id: '3', client: 'Caro Méndez',    item: 'Pikachu Personalizado', category: 'Personajes',         status: 'TEJIENDO',   dueDate: '03 Oct 2026', totalPrice: 6500,  advancePayment: 2300, instagram: '@caro_m',     createdAt: '14 Sep 2026' },
-  { id: '4', client: 'Lu Castillo',    item: 'Unicornio Bebé',        category: 'Amigurumis General', status: 'PENDIENTE',  dueDate: '08 Oct 2026', totalPrice: 8000,  advancePayment: 2000, whatsapp: '1133445566',   createdAt: '20 Sep 2026' },
-  { id: '5', client: 'Mica Torres',    item: 'Stitch Grande',         category: 'Personajes',         status: 'PENDIENTE',  dueDate: '12 Oct 2026', totalPrice: 7200,  advancePayment: 3000, instagram: '@mica.crochet',createdAt: '21 Sep 2026' },
-  { id: '6', client: 'Fer Rodríguez',  item: 'Ramo Flores Tejidas',   category: 'Flores',             status: 'ENTREGADO',  dueDate: '15 Sep 2026', totalPrice: 3500,  advancePayment: 3500,                           createdAt: '01 Sep 2026' },
-  { id: '7', client: 'Juli Vega',      item: 'Axolote Rosa',          category: 'Personajes',         status: 'ENTREGADO',  dueDate: '18 Sep 2026', totalPrice: 4800,  advancePayment: 4800, instagram: '@juliv',      createdAt: '05 Sep 2026' },
+  { id: '1', client: 'Sol Ramírez',    item: 'Osito Apego XL',        category: 'Amigurumis General', status: 'TERMINADO',  dueDate: '28 Sep 2026', totalPrice: 5000,  advancePayment: 1500, instagram: '@sol.amis',    createdAt: '10 Sep 2026' },
+  { id: '2', client: 'Dani Fonseca',   item: 'Set Llaveros x3',       category: 'Llaveros',           status: 'TEJIENDO',   dueDate: '01 Oct 2026', totalPrice: 2400,  advancePayment: 600,  whatsapp: '1155667788',    createdAt: '12 Sep 2026' },
+  { id: '3', client: 'Caro Méndez',    item: 'Pikachu Personalizado', category: 'Personajes',         status: 'TEJIENDO',   dueDate: '03 Oct 2026', totalPrice: 6500,  advancePayment: 2300, instagram: '@caro_m',      createdAt: '14 Sep 2026' },
+  { id: '4', client: 'Lu Castillo',    item: 'Unicornio Bebé',        category: 'Amigurumis General', status: 'PENDIENTE',  dueDate: '08 Oct 2026', totalPrice: 8000,  advancePayment: 2000, whatsapp: '1133445566',    createdAt: '20 Sep 2026' },
+  { id: '5', client: 'Mica Torres',    item: 'Stitch Grande',         category: 'Personajes',         status: 'PENDIENTE',  dueDate: '12 Oct 2026', totalPrice: 7200,  advancePayment: 3000, instagram: '@mica.crochet', createdAt: '21 Sep 2026' },
+  { id: '6', client: 'Fer Rodríguez',  item: 'Ramo Flores Tejidas',   category: 'Flores',             status: 'ENTREGADO',  dueDate: '15 Sep 2026', totalPrice: 3500,  advancePayment: 3500,                             createdAt: '01 Sep 2026' },
+  { id: '7', client: 'Juli Vega',      item: 'Axolote Rosa',          category: 'Personajes',         status: 'ENTREGADO',  dueDate: '18 Sep 2026', totalPrice: 4800,  advancePayment: 4800, instagram: '@juliv',       createdAt: '05 Sep 2026' },
+  { id: '8', client: 'Vale Sánchez',   item: 'Dragonón Personalizado', category: 'Personajes',        status: 'PENDIENTE',  dueDate: '20 Oct 2026', totalPrice: 0,     advancePayment: 0,    instagram: '@vale.tejidos', createdAt: '25 Sep 2026' },
 ];
 
 const STATUS_ORDER: OrderStatus[] = ['PENDIENTE', 'TEJIENDO', 'TERMINADO', 'ENTREGADO'];
@@ -64,8 +65,9 @@ function OrderCard({
   order: Order;
   onAdvance: (id: string) => void;
 }) {
-  const balance = order.totalPrice - order.advancePayment;
-  const paidPercent = Math.round((order.advancePayment / order.totalPrice) * 100);
+  const hasPriceDefined = order.totalPrice > 0;
+  const balance = hasPriceDefined ? order.totalPrice - order.advancePayment : 0;
+  const paidPercent = hasPriceDefined ? Math.round((order.advancePayment / order.totalPrice) * 100) : 0;
   const currentIdx = STATUS_FLOW.indexOf(order.status);
   const hasNext = order.status !== 'ENTREGADO';
 
@@ -100,32 +102,45 @@ function OrderCard({
         </span>
       </div>
 
-      {/* Progress bar */}
-      <div className="space-y-1">
-        <div className="flex justify-between text-xs">
-          <span className="text-text-muted">Seña pagada</span>
-          <span className="font-semibold text-evergreen">{paidPercent}%</span>
+      {/* Progress bar — solo si hay precio */}
+      {hasPriceDefined ? (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-text-muted">Seña pagada</span>
+            <span className="font-semibold text-evergreen">{paidPercent}%</span>
+          </div>
+          <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${paidPercent}%`,
+                backgroundColor: paidPercent === 100 ? '#829672' : '#d8959b',
+              }}
+            />
+          </div>
         </div>
-        <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{
-              width: `${paidPercent}%`,
-              backgroundColor: paidPercent === 100 ? '#829672' : '#d8959b',
-            }}
-          />
+      ) : (
+        <div className="flex items-center gap-1.5 text-xs text-mauve font-semibold py-0.5">
+          <span className="w-4 h-4 rounded-full bg-peony flex items-center justify-center text-[10px]">$</span>
+          Precio a confirmar con el Cotizador
         </div>
-      </div>
+      )}
 
       {/* Price row */}
       <div className="flex items-center justify-between pt-1 border-t border-[#eedddb]/60">
         <div className="flex items-center gap-1 text-xs text-text-muted">
           <Banknote size={12} />
-          <span>Total: <span className="font-semibold text-evergreen">{formatARS(order.totalPrice)}</span></span>
+          {hasPriceDefined ? (
+            <span>Total: <span className="font-semibold text-evergreen">{formatARS(order.totalPrice)}</span></span>
+          ) : (
+            <span className="italic">Sin precio asignado</span>
+          )}
         </div>
-        <div className="text-xs font-bold" style={{ color: balance > 0 ? '#d8959b' : '#829672' }}>
-          {balance > 0 ? `Saldo: ${formatARS(balance)}` : '✓ Pagado'}
-        </div>
+        {hasPriceDefined && (
+          <div className="text-xs font-bold" style={{ color: balance > 0 ? '#d8959b' : '#829672' }}>
+            {balance > 0 ? `Saldo: ${formatARS(balance)}` : '✓ Pagado'}
+          </div>
+        )}
       </div>
 
       {/* Quick-advance button */}
