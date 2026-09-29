@@ -9,6 +9,7 @@ import { QuotePage } from './features/quotes/QuotePage';
 import { FinancesPage } from './features/finances/FinancesPage';
 import { FastSalePage } from './features/fast-sale/FastSalePage';
 import { CounterPage } from './features/counter/CounterPage';
+import { NotFoundPage } from './shared/components/NotFoundPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { path: 'finanzas',        element: <FinancesPage /> },
       { path: 'venta-rapida',    element: <FastSalePage /> },
       { path: 'contador',        element: <CounterPage /> },
+      { path: '*',              element: <NotFoundPage /> },
     ],
   },
 ]);
