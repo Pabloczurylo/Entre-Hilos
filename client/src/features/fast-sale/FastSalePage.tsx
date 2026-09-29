@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ShoppingBag,
   Check,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { PRODUCT_CATEGORIES } from '../../shared/types';
+import { fastSaleApi } from './services/fastSaleApi';
 
 export interface StockProduct {
   id: string;
@@ -60,6 +62,7 @@ interface CartItem {
 
 export function FastSalePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Stock state
   const [products, setProducts] = useState<StockProduct[]>(loadInitialProducts);
@@ -228,17 +231,37 @@ export function FastSalePage() {
   }
 
   const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const [selling, setSelling] = useState(false);
+  const [sellError, setSellError] = useState('');
 
   async function handleSell() {
-    if (!cart.length) return;
-    // Simulate API call
-    await new Promise(r => setTimeout(r, 500));
-    setSuccess(true);
-    setTimeout(() => {
-      setSuccess(false);
-      setCart([]);
-      navigate('/finanzas');
-    }, 1800);
+    if (!cart.length || selling) return;
+    setSelling(true);
+    setSellError('');
+
+    try {
+      const desc = cart.map(c => `${c.name} x${c.qty}`).join(', ');
+      await fastSaleApi.create({
+        description: desc,
+        amount: total,
+        paymentMethod: method,
+      });
+
+      // Invalidate cache
+      queryClient.invalidateQueries({ queryKey: ['finances-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['finances-transactions'] });
+
+      setSuccess(true);
+      setTimeout(() => {
+        setSuccess(false);
+        setCart([]);
+        navigate('/finanzas');
+      }, 1500);
+    } catch (err: any) {
+      setSellError(err.message || 'Error al registrar la venta rápida');
+    } finally {
+      setSelling(false);
+    }
   }
 
   return (
@@ -572,15 +595,31 @@ export function FastSalePage() {
               </div>
             </div>
 
+            {sellError && (
+              <p className="text-xs text-red-500 mb-3 text-center">{sellError}</p>
+            )}
+
             <button
               type="button"
               onClick={handleSell}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || selling}
               className="btn-primary w-full justify-center py-3 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
               id="btn-confirmar-venta"
             >
-              <Check size={18} />
-              Confirmar Venta · {formatARS(total)}
+              {selling ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Registrando...
+                </span>
+              ) : (
+                <>
+                  <Check size={18} />
+                  Confirmar Venta · {formatARS(total)}
+                </>
+              )}
             </button>
           </div>
         </div>

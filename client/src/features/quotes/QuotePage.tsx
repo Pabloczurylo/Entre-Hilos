@@ -135,7 +135,18 @@ export function QuotePage() {
   }
 
   function handleCreateOrder() {
-    navigate('/pedidos/nuevo');
+    const materialsSummary = materials
+      .filter((m) => m.desc.trim() && m.cost)
+      .map((m) => `${m.desc}: $${m.cost}`)
+      .join(', ');
+
+    navigate('/pedidos/nuevo', {
+      state: {
+        item: projectName || 'Amigurumi personalizado',
+        totalPrice: Math.round(suggested),
+        notes: materialsSummary ? `Materiales estimados: ${materialsSummary} (${hours || 0} hs de tejido)` : '',
+      },
+    });
   }
 
   const activeLevel = COMPLEXITY_LEVELS.find(c => c.id === selectedComplexity)!;

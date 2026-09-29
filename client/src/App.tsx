@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppLayout } from './shared/components/AppLayout';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { OrdersPage } from './features/orders/OrdersPage';
@@ -8,6 +9,16 @@ import { QuotePage } from './features/quotes/QuotePage';
 import { FinancesPage } from './features/finances/FinancesPage';
 import { FastSalePage } from './features/fast-sale/FastSalePage';
 import { CounterPage } from './features/counter/CounterPage';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 30, // 30s cache
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const router = createBrowserRouter([
   {
@@ -27,5 +38,9 @@ const router = createBrowserRouter([
 ]);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  );
 }

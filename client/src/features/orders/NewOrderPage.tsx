@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PRODUCT_CATEGORIES } from '../../shared/types';
+import { orderApi } from './services/orderApi';
+import { CreateOrderDTO } from './types';
 
 const CATEGORIES = PRODUCT_CATEGORIES;
 
@@ -21,26 +24,30 @@ interface OrderFormState {
 
 export function NewOrderPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const initialData = (location.state as any) || {};
+
   const [form, setForm] = useState<OrderFormState>({
-    clientName: '',
-    instagram: '',
-    whatsapp: '',
-    item: '',
-    category: CATEGORIES[0],
-    notes: '',
-    dueDate: '',
-    totalPrice: '',
-    advancePayment: '',
-    advanceMethod: 'TRANSFERENCIA',
-    hasAdvance: false,
+    clientName: initialData.clientName || '',
+    instagram: initialData.instagram || '',
+    whatsapp: initialData.whatsapp || '',
+    item: initialData.item || '',
+    category: initialData.category || CATEGORIES[0],
+    notes: initialData.notes || '',
+    dueDate: initialData.dueDate || '',
+    totalPrice: initialData.totalPrice ? String(initialData.totalPrice) : '',
+    advancePayment: initialData.advancePayment ? String(initialData.advancePayment) : '',
+    advanceMethod: initialData.advanceMethod || 'TRANSFERENCIA',
+    hasAdvance: Boolean(initialData.advancePayment),
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof OrderFormState, string>>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string>('');
 
   function update(key: keyof OrderFormState, value: string | boolean) {
-    setForm(prev => ({ ...prev, [key]: value }));
-    if (errors[key]) setErrors(prev => ({ ...prev, [key]: undefined }));
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
   }
 
   function validate() {
@@ -50,32 +57,72 @@ export function NewOrderPage() {
     if (!form.totalPrice || isNaN(+form.totalPrice) || +form.totalPrice <= 0)
       e.totalPrice = 'Ingresá un precio válido';
     if (!form.dueDate) e.dueDate = 'La fecha de entrega es obligatoria';
-    if (form.hasAdvance && (!form.advancePayment || isNaN(+form.advancePayment) || +form.advancePayment <= 0))
+    if (
+      form.hasAdvance &&
+      (!form.advancePayment || isNaN(+form.advancePayment) || +form.advancePayment <= 0)
+    )
       e.advancePayment = 'Ingresá el monto de la seña';
     if (form.hasAdvance && +form.advancePayment > +form.totalPrice)
       e.advancePayment = 'La seña no puede superar el total';
     return e;
   }
 
+  const createOrderMutation = useMutation({
+    mutationFn: (dto: CreateOrderDTO) => orderApi.createOrder(dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['finances-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['finances-transactions'] });
+      navigate('/pedidos');
+    },
+    onError: (err: Error) => {
+      setApiError(err.message || 'Ocurrió un error al crear el pedido');
+    },
+  });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setApiError('');
     const e2 = validate();
-    if (Object.keys(e2).length) { setErrors(e2); return; }
+    if (Object.keys(e2).length) {
+      setErrors(e2);
+      return;
+    }
 
-    setSubmitting(true);
-    // TODO: call API
-    await new Promise(r => setTimeout(r, 600));
-    setSubmitting(false);
-    navigate('/pedidos');
+    const payload: CreateOrderDTO = {
+      newCustomer: {
+        name: form.clientName.trim(),
+        instagram: form.instagram.trim() || undefined,
+        whatsapp: form.whatsapp.trim() || undefined,
+      },
+      items: [
+        {
+          name: form.item.trim(),
+          quantity: 1,
+          unitPrice: parseFloat(form.totalPrice),
+          customizationDetails: form.notes.trim() || undefined,
+        },
+      ],
+      depositAmount:
+        form.hasAdvance && form.advancePayment ? parseFloat(form.advancePayment) : undefined,
+      depositPaymentMethod:
+        form.hasAdvance && form.advancePayment ? form.advanceMethod : undefined,
+      deliveryDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+      notes: form.notes.trim() || undefined,
+    };
+
+    createOrderMutation.mutate(payload);
   }
 
-  const balance = form.totalPrice && form.advancePayment
-    ? (+form.totalPrice - +form.advancePayment)
-    : null;
+  const balance =
+    form.totalPrice && form.advancePayment ? +form.totalPrice - +form.advancePayment : null;
 
   return (
     <div className="py-8 page-enter max-w-2xl mx-auto">
-      <Link to="/pedidos" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-evergreen font-semibold mb-6 transition-colors">
+      <Link
+        to="/pedidos"
+        className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-evergreen font-semibold mb-6 transition-colors"
+      >
         <ArrowLeft size={16} />
         Volver al Tablero
       </Link>
@@ -85,11 +132,19 @@ export function NewOrderPage() {
         <p className="text-sm text-text-muted mt-1">Completá los datos para registrar el encargo</p>
       </div>
 
+      {apiError && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 text-sm rounded-xl">
+          {apiError}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} noValidate>
         {/* ── Cliente ── */}
         <div className="card-craft p-6 mb-5">
           <h2 className="text-base font-bold text-evergreen mb-4 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">1</span>
+            <span className="w-6 h-6 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">
+              1
+            </span>
             Datos del Cliente
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -101,30 +156,34 @@ export function NewOrderPage() {
                 id="clientName"
                 type="text"
                 value={form.clientName}
-                onChange={e => update('clientName', e.target.value)}
+                onChange={(e) => update('clientName', e.target.value)}
                 placeholder="Ej: Sol Ramírez"
                 className={`input-craft ${errors.clientName ? 'border-red-400 focus:border-red-400' : ''}`}
               />
               {errors.clientName && <p className="text-xs text-red-500 mt-1">{errors.clientName}</p>}
             </div>
             <div>
-              <label htmlFor="instagram" className="label-craft">Instagram <span className="text-text-muted font-normal text-xs">(opcional)</span></label>
+              <label htmlFor="instagram" className="label-craft">
+                Instagram <span className="text-text-muted font-normal text-xs">(opcional)</span>
+              </label>
               <input
                 id="instagram"
                 type="text"
                 value={form.instagram}
-                onChange={e => update('instagram', e.target.value)}
+                onChange={(e) => update('instagram', e.target.value)}
                 placeholder="@usuario"
                 className="input-craft"
               />
             </div>
             <div>
-              <label htmlFor="whatsapp" className="label-craft">WhatsApp <span className="text-text-muted font-normal text-xs">(opcional)</span></label>
+              <label htmlFor="whatsapp" className="label-craft">
+                WhatsApp <span className="text-text-muted font-normal text-xs">(opcional)</span>
+              </label>
               <input
                 id="whatsapp"
                 type="tel"
                 value={form.whatsapp}
-                onChange={e => update('whatsapp', e.target.value)}
+                onChange={(e) => update('whatsapp', e.target.value)}
                 placeholder="1155667788"
                 className="input-craft"
               />
@@ -135,7 +194,9 @@ export function NewOrderPage() {
         {/* ── Amigurumi ── */}
         <div className="card-craft p-6 mb-5">
           <h2 className="text-base font-bold text-evergreen mb-4 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">2</span>
+            <span className="w-6 h-6 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">
+              2
+            </span>
             Detalle del Amigurumi
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -147,24 +208,31 @@ export function NewOrderPage() {
                 id="item"
                 type="text"
                 value={form.item}
-                onChange={e => update('item', e.target.value)}
+                onChange={(e) => update('item', e.target.value)}
                 placeholder="Ej: Osito Apego XL, Pikachu con auriculares..."
                 className={`input-craft ${errors.item ? 'border-red-400' : ''}`}
               />
               {errors.item && <p className="text-xs text-red-500 mt-1">{errors.item}</p>}
             </div>
             <div>
-              <label htmlFor="category" className="label-craft">Categoría</label>
+              <label htmlFor="category" className="label-craft">
+                Categoría
+              </label>
               <div className="relative">
                 <select
                   id="category"
                   value={form.category}
-                  onChange={e => update('category', e.target.value)}
+                  onChange={(e) => update('category', e.target.value)}
                   className="input-craft appearance-none pr-9 cursor-pointer"
                 >
-                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                  {CATEGORIES.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
                 </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                <ChevronDown
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                />
               </div>
             </div>
             <div>
@@ -175,17 +243,19 @@ export function NewOrderPage() {
                 id="dueDate"
                 type="date"
                 value={form.dueDate}
-                onChange={e => update('dueDate', e.target.value)}
+                onChange={(e) => update('dueDate', e.target.value)}
                 className={`input-craft ${errors.dueDate ? 'border-red-400' : ''}`}
               />
               {errors.dueDate && <p className="text-xs text-red-500 mt-1">{errors.dueDate}</p>}
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="notes" className="label-craft">Notas de personalización</label>
+              <label htmlFor="notes" className="label-craft">
+                Notas de personalización
+              </label>
               <textarea
                 id="notes"
                 value={form.notes}
-                onChange={e => update('notes', e.target.value)}
+                onChange={(e) => update('notes', e.target.value)}
                 placeholder="Colores, tamaño, detalles especiales..."
                 rows={3}
                 className="input-craft resize-none"
@@ -197,7 +267,9 @@ export function NewOrderPage() {
         {/* ── Precio ── */}
         <div className="card-craft p-6 mb-5">
           <h2 className="text-base font-bold text-evergreen mb-4 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">3</span>
+            <span className="w-6 h-6 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">
+              3
+            </span>
             Precio y Seña
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -206,13 +278,15 @@ export function NewOrderPage() {
                 Precio total <span className="text-mauve">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-semibold text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-semibold text-sm">
+                  $
+                </span>
                 <input
                   id="totalPrice"
                   type="number"
                   min="0"
                   value={form.totalPrice}
-                  onChange={e => update('totalPrice', e.target.value)}
+                  onChange={(e) => update('totalPrice', e.target.value)}
                   placeholder="0"
                   className={`input-craft pl-7 ${errors.totalPrice ? 'border-red-400' : ''}`}
                 />
@@ -226,42 +300,63 @@ export function NewOrderPage() {
                 type="button"
                 id="toggle-advance"
                 onClick={() => update('hasAdvance', !form.hasAdvance)}
-                className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${form.hasAdvance ? 'bg-mauve' : 'bg-surface-container-high'}`}
+                className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${
+                  form.hasAdvance ? 'bg-mauve' : 'bg-surface-container-high'
+                }`}
               >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${form.hasAdvance ? 'translate-x-5' : ''}`} />
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+                    form.hasAdvance ? 'translate-x-5' : ''
+                  }`}
+                />
               </button>
-              <label htmlFor="toggle-advance" className="text-sm font-semibold text-evergreen cursor-pointer">
-                Registrar seña
+              <label
+                htmlFor="toggle-advance"
+                className="text-sm font-semibold text-evergreen cursor-pointer"
+              >
+                Registrar seña inicial
               </label>
             </div>
 
             {form.hasAdvance && (
               <>
                 <div>
-                  <label htmlFor="advancePayment" className="label-craft">Monto de seña <span className="text-mauve">*</span></label>
+                  <label htmlFor="advancePayment" className="label-craft">
+                    Monto de seña <span className="text-mauve">*</span>
+                  </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-semibold text-sm">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-semibold text-sm">
+                      $
+                    </span>
                     <input
                       id="advancePayment"
                       type="number"
                       min="0"
                       value={form.advancePayment}
-                      onChange={e => update('advancePayment', e.target.value)}
+                      onChange={(e) => update('advancePayment', e.target.value)}
                       placeholder="0"
                       className={`input-craft pl-7 ${errors.advancePayment ? 'border-red-400' : ''}`}
                     />
                   </div>
-                  {errors.advancePayment && <p className="text-xs text-red-500 mt-1">{errors.advancePayment}</p>}
+                  {errors.advancePayment && (
+                    <p className="text-xs text-red-500 mt-1">{errors.advancePayment}</p>
+                  )}
                 </div>
                 <div>
-                  <label htmlFor="advanceMethod" className="label-craft">Método de pago</label>
+                  <label htmlFor="advanceMethod" className="label-craft">
+                    Método de pago (Obligatorio)
+                  </label>
                   <div className="flex gap-3">
-                    {(['EFECTIVO', 'TRANSFERENCIA'] as const).map(m => (
+                    {(['EFECTIVO', 'TRANSFERENCIA'] as const).map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => update('advanceMethod', m)}
-                        className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${form.advanceMethod === m ? 'border-mauve bg-peony text-evergreen' : 'border-[#eedddb] bg-white text-text-muted'}`}
+                        className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                          form.advanceMethod === m
+                            ? 'border-mauve bg-peony text-evergreen'
+                            : 'border-[#eedddb] bg-white text-text-muted'
+                        }`}
                       >
                         {m === 'EFECTIVO' ? '💵 Efectivo' : '💳 Transferencia'}
                       </button>
@@ -275,8 +370,12 @@ export function NewOrderPage() {
           {/* Balance preview */}
           {balance !== null && balance >= 0 && (
             <div className="mt-4 p-3 bg-primary-fixed rounded-xl flex items-center justify-between">
-              <span className="text-sm text-on-primary-fixed font-semibold">Saldo a cobrar al entregar</span>
-              <span className="text-lg font-bold text-evergreen">${balance.toLocaleString('es-AR')}</span>
+              <span className="text-sm text-on-primary-fixed font-semibold">
+                Saldo a cobrar al entregar
+              </span>
+              <span className="text-lg font-bold text-evergreen">
+                ${balance.toLocaleString('es-AR')}
+              </span>
             </div>
           )}
         </div>
@@ -285,13 +384,23 @@ export function NewOrderPage() {
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={createOrderMutation.isPending}
             id="btn-guardar-pedido"
             className="btn-primary flex-1 justify-center disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {submitting ? (
+            {createOrderMutation.isPending ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
                 Guardando...
               </span>
             ) : (
