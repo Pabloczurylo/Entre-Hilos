@@ -97,7 +97,7 @@ export function NewOrderPage() {
         {
           name: form.item.trim(),
           quantity: 1,
-          unitPrice: parseFloat(form.totalPrice),
+          unitPrice: form.totalPrice ? parseFloat(form.totalPrice) : 0,
           customizationDetails: form.notes.trim() || undefined,
         },
       ],

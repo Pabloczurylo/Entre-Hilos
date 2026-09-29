@@ -15,7 +15,7 @@ const createCustomerSchema = z.object({
 const orderItemSchema = z.object({
   name: z.string().min(1, 'El nombre del ítem es requerido'),
   quantity: z.number().int().min(1, 'La cantidad mínima es 1'),
-  unitPrice: z.number().min(0, 'El precio unitario no puede ser negativo'),
+  unitPrice: z.number().finite('El precio debe ser un número válido').min(0, 'El precio unitario no puede ser negativo').default(0),
   catalogItemId: z.string().uuid().optional(),
   customizationDetails: z.string().optional(),
 });
