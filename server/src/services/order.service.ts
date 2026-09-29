@@ -135,6 +135,14 @@ export class OrderService {
       );
     }
 
+    // Si el total es 0 (precio a confirmar), no puede haber seña
+    if (totalAmount === 0 && depositAmount > 0) {
+      throw new AppError(
+        'No se puede registrar una seña sin haber definido el precio total',
+        400
+      );
+    }
+
     return prisma.$transaction(async (tx) => {
       const orderCount = await tx.order.count();
       const orderNumber = `PED-${String(orderCount + 1).padStart(4, '0')}`;

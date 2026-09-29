@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -12,6 +12,8 @@ import {
   Edit2,
   Package,
   PlusCircle,
+  Calculator,
+  CheckCircle2,
   X,
 } from 'lucide-react';
 import { StatusBadge } from '../../shared/components/StatusBadge';
@@ -60,12 +62,28 @@ function formatDateFull(dateStr?: string | null) {
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [showPayModal, setShowPayModal] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<PaymentMethod>('EFECTIVO');
   const [payNotes, setPayNotes] = useState('');
   const [payError, setPayError] = useState('');
+
+  // Precio propuesto desde el cotizador
+  const appliedPriceParam = searchParams.get('appliedPrice');
+  const appliedPriceRaw = appliedPriceParam ? parseInt(appliedPriceParam, 10) : null;
+  const [priceAccepted, setPriceAccepted] = useState(false);
+
+  function acceptPrice() {
+    if (!appliedPriceRaw) return;
+    setPriceAccepted(true);
+    setSearchParams({}, { replace: true });
+  }
+
+  function dismissPrice() {
+    setSearchParams({}, { replace: true });
+  }
 
   const { data: order, isLoading, error } = useQuery<Order>({
     queryKey: ['order', id],
@@ -134,7 +152,8 @@ export function OrderDetailPage() {
   const total = Number(order.totalAmount || 0);
   const deposit = Number(order.depositAmount || 0);
   const balance = Number(order.balanceAmount ?? (total - deposit));
-  const paidPercent = total > 0 ? Math.min(100, Math.round(((total - balance) / total) * 100)) : 0;
+  const hasPriceDefined = total > 0;
+  const paidPercent = hasPriceDefined ? Math.min(100, Math.round(((total - balance) / total) * 100)) : 0;
 
   const currentIdx = STATUS_FLOW.indexOf(order.status);
   const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
@@ -147,6 +166,10 @@ export function OrderDetailPage() {
   };
 
   const transactions = (order as any).transactions || [];
+
+  // URL para ir al cotizador con contexto pre-cargado
+  const firstItemName = order.items?.[0]?.name || '';
+  const quoteUrl = `/cotizador?orderId=${order.id}&orderName=${encodeURIComponent(firstItemName)}&orderClient=${encodeURIComponent(clientName)}`;
 
   const handleOpenPayModal = () => {
     setPayAmount(balance.toString());
@@ -345,11 +368,59 @@ export function OrderDetailPage() {
         )}
       </div>
 
+      {/* Banner: precio propuesto por el cotizador */}
+      {appliedPriceRaw && !priceAccepted && (
+        <div className="card-craft p-5 mb-6 border-2 border-mauve/40 bg-peony/10">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-peony flex items-center justify-center flex-shrink-0">
+              <Calculator size={18} className="text-mauve" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-0.5">Precio calculado por el Cotizador</p>
+              <p className="text-2xl font-black text-evergreen">{formatARS(appliedPriceRaw)}</p>
+              <p className="text-xs text-text-muted mt-1">¿Querés aplicar este precio al pedido?</p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button
+              type="button"
+              onClick={acceptPrice}
+              id="btn-confirmar-precio-cotizador"
+              className="btn-primary flex-1 justify-center text-sm"
+            >
+              <CheckCircle2 size={14} />
+              Confirmar precio
+            </button>
+            <button
+              type="button"
+              onClick={dismissPrice}
+              className="btn-secondary text-sm"
+              id="btn-descartar-precio-cotizador"
+            >
+              <X size={14} />
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Banner: precio aceptado exitosamente */}
+      {priceAccepted && appliedPriceRaw && (
+        <div className="flex items-center gap-3 px-4 py-3 mb-6 rounded-xl bg-secondary-container/60 border border-sage/30">
+          <CheckCircle2 size={16} className="text-sage flex-shrink-0" />
+          <p className="text-sm text-evergreen">
+            <span className="font-bold">Precio actualizado:</span>{' '}
+            <span className="font-semibold text-sage">{formatARS(appliedPriceRaw)}</span>{' '}
+            aplicado desde el Cotizador
+          </p>
+        </div>
+      )}
+
       {/* Finance card */}
       <div className="card-craft p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-evergreen">Detalle Financiero</h2>
-          {balance > 0 && (
+          {hasPriceDefined && balance > 0 && (
             <button
               onClick={handleOpenPayModal}
               className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
@@ -360,80 +431,104 @@ export function OrderDetailPage() {
           )}
         </div>
 
-        {/* Progress */}
-        <div className="mb-5">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-text-muted">Abonado</span>
-            <span className="font-bold text-evergreen">
-              {formatARS(total - balance)} / {formatARS(total)}
-            </span>
-          </div>
-          <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{
-                width: `${paidPercent}%`,
-                backgroundColor: paidPercent >= 100 ? '#829672' : '#d8959b',
-              }}
-            />
-          </div>
-          <p className="text-xs text-text-muted mt-1 text-right">{paidPercent}% abonado</p>
-        </div>
-
-        {/* Balance highlight */}
-        <div
-          className={`p-4 rounded-xl flex items-center justify-between mb-5 ${
-            balance > 0 ? 'bg-primary-fixed' : 'bg-[#d1e7be]'
-          }`}
-        >
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-evergreen">
-              {balance > 0 ? 'Saldo restante' : 'Total pagado'}
-            </p>
-            <p className="text-2xl font-bold text-evergreen">
-              {formatARS(balance > 0 ? balance : total)}
-            </p>
-          </div>
-          {balance > 0 ? (
-            <Banknote size={28} className="text-mauve opacity-60" />
-          ) : (
-            <Check size={28} className="text-sage opacity-80" />
-          )}
-        </div>
-
-        {/* Payment history */}
-        <div>
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-            Historial de pagos registrados
-          </p>
-          {transactions.length === 0 ? (
-            <p className="text-xs text-text-muted italic">Sin transacciones registradas</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {transactions.map((p: any) => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl"
-                >
-                  <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
-                    {p.paymentMethod === 'TRANSFERENCIA' ? (
-                      <CreditCard size={14} className="text-sage" />
-                    ) : (
-                      <Banknote size={14} className="text-sage" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-evergreen">{p.description}</p>
-                    <p className="text-xs text-text-muted">
-                      {formatDateFull(p.date)} · {p.paymentMethod || 'Efectivo'}
-                    </p>
-                  </div>
-                  <span className="text-sm font-bold text-sage">+{formatARS(Number(p.amount))}</span>
-                </div>
-              ))}
+        {!hasPriceDefined ? (
+          /* Estado: Precio a confirmar */
+          <div className="flex flex-col items-center gap-4 py-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-peony flex items-center justify-center">
+              <Calculator size={24} className="text-mauve" />
             </div>
-          )}
-        </div>
+            <div>
+              <p className="text-sm font-bold text-evergreen mb-1">Precio a confirmar</p>
+              <p className="text-xs text-text-muted leading-relaxed max-w-xs">
+                El precio de este pedido aún no fue definido. Usá el Cotizador para calcular el presupuesto y vincularlo a este pedido.
+              </p>
+            </div>
+            <Link
+              to={quoteUrl}
+              className="btn-primary text-sm px-5 py-2.5"
+            >
+              <Calculator size={14} />
+              Cotizar este pedido
+            </Link>
+          </div>
+        ) : (
+          <>
+            {/* Progress */}
+            <div className="mb-5">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-text-muted">Abonado</span>
+                <span className="font-bold text-evergreen">
+                  {formatARS(total - balance)} / {formatARS(total)}
+                </span>
+              </div>
+              <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${paidPercent}%`,
+                    backgroundColor: paidPercent >= 100 ? '#829672' : '#d8959b',
+                  }}
+                />
+              </div>
+              <p className="text-xs text-text-muted mt-1 text-right">{paidPercent}% abonado</p>
+            </div>
+
+            {/* Balance highlight */}
+            <div
+              className={`p-4 rounded-xl flex items-center justify-between mb-5 ${
+                balance > 0 ? 'bg-primary-fixed' : 'bg-[#d1e7be]'
+              }`}
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-evergreen">
+                  {balance > 0 ? 'Saldo restante' : 'Total pagado'}
+                </p>
+                <p className="text-2xl font-bold text-evergreen">
+                  {formatARS(balance > 0 ? balance : total)}
+                </p>
+              </div>
+              {balance > 0 ? (
+                <Banknote size={28} className="text-mauve opacity-60" />
+              ) : (
+                <Check size={28} className="text-sage opacity-80" />
+              )}
+            </div>
+
+            {/* Payment history */}
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
+                Historial de pagos registrados
+              </p>
+              {transactions.length === 0 ? (
+                <p className="text-xs text-text-muted italic">Sin transacciones registradas</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {transactions.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                        {p.paymentMethod === 'TRANSFERENCIA' ? (
+                          <CreditCard size={14} className="text-sage" />
+                        ) : (
+                          <Banknote size={14} className="text-sage" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-evergreen">{p.description}</p>
+                        <p className="text-xs text-text-muted">
+                          {formatDateFull(p.date)} · {p.paymentMethod || 'Efectivo'}
+                        </p>
+                      </div>
+                      <span className="text-sm font-bold text-sage">+{formatARS(Number(p.amount))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Pay balance modal */}

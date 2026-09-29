@@ -53,7 +53,8 @@ function OrderCard({
   const total = Number(order.totalAmount || 0);
   const deposit = Number(order.depositAmount || 0);
   const balance = Number(order.balanceAmount ?? (total - deposit));
-  const paidPercent = total > 0 ? Math.min(100, Math.round((deposit / total) * 100)) : 0;
+  const hasPriceDefined = total > 0;
+  const paidPercent = hasPriceDefined ? Math.min(100, Math.round(((total - balance) / total) * 100)) : 0;
   const currentIdx = STATUS_FLOW.indexOf(order.status);
   const hasNext = order.status !== 'ENTREGADO';
   const clientName = order.customer?.name || 'Cliente';
@@ -101,34 +102,45 @@ function OrderCard({
         )}
       </div>
 
-      {/* Progress bar */}
-      <div className="space-y-1">
-        <div className="flex justify-between text-xs">
-          <span className="text-text-muted">Seña abonada</span>
-          <span className="font-semibold text-evergreen">{paidPercent}%</span>
+      {/* Progress bar — solo si hay precio */}
+      {hasPriceDefined ? (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-text-muted">Seña pagada</span>
+            <span className="font-semibold text-evergreen">{paidPercent}%</span>
+          </div>
+          <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${paidPercent}%`,
+                backgroundColor: paidPercent === 100 ? '#829672' : '#d8959b',
+              }}
+            />
+          </div>
         </div>
-        <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{
-              width: `${paidPercent}%`,
-              backgroundColor: paidPercent >= 100 ? '#829672' : '#d8959b',
-            }}
-          />
+      ) : (
+        <div className="flex items-center gap-1.5 text-xs text-mauve font-semibold py-0.5">
+          <span className="w-4 h-4 rounded-full bg-peony flex items-center justify-center text-[10px]">$</span>
+          Precio a confirmar con el Cotizador
         </div>
-      </div>
+      )}
 
       {/* Price row */}
       <div className="flex items-center justify-between pt-1 border-t border-[#eedddb]/60">
         <div className="flex items-center gap-1 text-xs text-text-muted">
           <Banknote size={12} />
-          <span>
-            Total: <span className="font-semibold text-evergreen">{formatARS(total)}</span>
-          </span>
+          {hasPriceDefined ? (
+            <span>Total: <span className="font-semibold text-evergreen">{formatARS(total)}</span></span>
+          ) : (
+            <span className="italic">Sin precio asignado</span>
+          )}
         </div>
-        <div className="text-xs font-bold" style={{ color: balance > 0 ? '#d8959b' : '#829672' }}>
-          {balance > 0 ? `Saldo: ${formatARS(balance)}` : '✓ Pagado'}
-        </div>
+        {hasPriceDefined && (
+          <div className="text-xs font-bold" style={{ color: balance > 0 ? '#d8959b' : '#829672' }}>
+            {balance > 0 ? `Saldo: ${formatARS(balance)}` : '✓ Pagado'}
+          </div>
+        )}
       </div>
 
       {/* Quick-advance button */}
@@ -272,7 +284,7 @@ export function OrdersPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-1">
-            Taller Artesanal • Producción & Despachos
+            Taller Artesanal • Producción &amp; Despachos
           </p>
           <div className="flex items-center gap-3">
             <h1 className="section-title">Tablero de Pedidos</h1>
