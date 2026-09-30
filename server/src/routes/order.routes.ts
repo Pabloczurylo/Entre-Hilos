@@ -40,6 +40,12 @@ const payBalanceSchema = z.object({
   notes: z.string().optional(),
 });
 
+const updateOrderSchema = z.object({
+  notes: z.string().optional(),
+  deliveryDate: z.string().nullable().optional(),
+  items: z.array(orderItemSchema).min(1).optional(),
+});
+
 // Customers endpoints
 router.get('/customers', (req, res, next) => orderController.getCustomers(req, res, next));
 router.get('/customers/:id', (req, res, next) => orderController.getCustomerById(req, res, next));
@@ -58,6 +64,10 @@ router.patch('/:id/status', validateRequest(updateStatusSchema), (req, res, next
 );
 router.post('/:id/pay-balance', validateRequest(payBalanceSchema), (req, res, next) =>
   orderController.payBalance(req, res, next)
+);
+router.delete('/:id', (req, res, next) => orderController.deleteOrder(req, res, next));
+router.put('/:id', validateRequest(updateOrderSchema), (req, res, next) =>
+  orderController.updateOrder(req, res, next)
 );
 
 export default router;

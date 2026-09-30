@@ -86,6 +86,26 @@ export class OrderController {
       next(error);
     }
   }
+
+  async deleteOrder(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      await orderService.deleteOrder(id);
+      res.json({ success: true, message: 'Pedido eliminado correctamente' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateOrder(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const order = await orderService.updateOrder(id, req.body);
+      res.json({ success: true, data: order });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const orderController = new OrderController();

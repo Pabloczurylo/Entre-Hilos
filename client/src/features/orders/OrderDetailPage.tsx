@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -15,6 +15,9 @@ import {
   Calculator,
   CheckCircle2,
   X,
+  Trash2,
+  Save,
+  Plus,
 } from 'lucide-react';
 import { StatusBadge } from '../../shared/components/StatusBadge';
 import type { OrderStatus, PaymentMethod } from '../../shared/types';
@@ -60,8 +63,22 @@ function formatDateFull(dateStr?: string | null) {
   }
 }
 
+// ─── Edit Item interface ──────────────────────────────────────────────────────
+interface EditItem {
+  id?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  customizationDetails: string;
+}
+
+function genTmpId() {
+  return `tmp_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [showPayModal, setShowPayModal] = useState(false);
@@ -74,6 +91,15 @@ export function OrderDetailPage() {
   const appliedPriceParam = searchParams.get('appliedPrice');
   const appliedPriceRaw = appliedPriceParam ? parseInt(appliedPriceParam, 10) : null;
   const [priceAccepted, setPriceAccepted] = useState(false);
+
+  // ─── Edit modal state ───────────────────────────────────────────────────────
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [editDeliveryDate, setEditDeliveryDate] = useState('');
+  const [editItems, setEditItems] = useState<EditItem[]>([]);
+
+  // ─── Delete confirm state ────────────────────────────────────────────────────
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   function acceptPrice() {
     if (!appliedPriceRaw) return;
@@ -115,6 +141,35 @@ export function OrderDetailPage() {
     },
     onError: (err: Error) => {
       setPayError(err.message || 'Error al registrar el pago');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => orderApi.deleteOrder(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['finances-dashboard'] });
+      navigate('/pedidos');
+    },
+  });
+
+  const updateOrderMutation = useMutation({
+    mutationFn: (data: { notes?: string; deliveryDate?: string | null; items?: EditItem[] }) =>
+      orderApi.updateOrder(id!, {
+        notes: data.notes,
+        deliveryDate: data.deliveryDate,
+        items: data.items?.map((it) => ({
+          name: it.name,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          customizationDetails: it.customizationDetails || undefined,
+        })),
+      }),
+    onSuccess: () => {
+      setShowEditModal(false);
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['finances-dashboard'] });
     },
   });
 
@@ -191,6 +246,57 @@ export function OrderDetailPage() {
     });
   };
 
+  // ─── Open edit modal pre-filled ────────────────────────────────────────────
+  function openEditModal() {
+    setEditNotes(order!.notes || '');
+    // Convert to local date string for <input type="date">
+    if (order!.deliveryDate) {
+      const d = new Date(order!.deliveryDate);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      setEditDeliveryDate(`${yyyy}-${mm}-${dd}`);
+    } else {
+      setEditDeliveryDate('');
+    }
+    setEditItems(
+      (order!.items || []).map((it) => ({
+        id: it.id,
+        name: it.name,
+        quantity: it.quantity,
+        unitPrice: Number(it.unitPrice),
+        customizationDetails: it.customizationDetails || '',
+      }))
+    );
+    setShowEditModal(true);
+  }
+
+  function addEditItem() {
+    setEditItems((prev) => [
+      ...prev,
+      { id: genTmpId(), name: '', quantity: 1, unitPrice: 0, customizationDetails: '' },
+    ]);
+  }
+
+  function removeEditItem(idx: number) {
+    setEditItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateEditItem(idx: number, key: keyof EditItem, val: string | number) {
+    setEditItems((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, [key]: val } : it))
+    );
+  }
+
+  function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    updateOrderMutation.mutate({
+      notes: editNotes.trim() || undefined,
+      deliveryDate: editDeliveryDate || null,
+      items: editItems.filter((it) => it.name.trim()),
+    });
+  }
+
   return (
     <div className="py-8 page-enter max-w-3xl mx-auto">
       {/* Back */}
@@ -245,7 +351,9 @@ export function OrderDetailPage() {
               </div>
             </div>
           </div>
-          <StatusBadge status={order.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={order.status} />
+          </div>
         </div>
 
         {/* Status stepper */}
@@ -366,6 +474,28 @@ export function OrderDetailPage() {
             Pedido completado y entregado
           </div>
         )}
+
+        {/* Edit / Delete actions */}
+        <div className="flex gap-2 mt-4 pt-4 border-t border-[#eedddb]/60">
+          <button
+            type="button"
+            onClick={openEditModal}
+            id="btn-editar-pedido"
+            className="btn-secondary flex-1 justify-center text-xs"
+          >
+            <Edit2 size={13} />
+            Editar pedido
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            id="btn-eliminar-pedido"
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border-2 border-red-200 text-red-400 hover:bg-red-50 hover:border-red-300 transition-all text-xs font-semibold"
+          >
+            <Trash2 size={13} />
+            Eliminar
+          </button>
+        </div>
       </div>
 
       {/* Banner: precio propuesto por el cotizador */}
@@ -531,7 +661,7 @@ export function OrderDetailPage() {
         )}
       </div>
 
-      {/* Pay balance modal */}
+      {/* ─── Pay balance modal ───────────────────────────────────────────────── */}
       {showPayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -618,6 +748,202 @@ export function OrderDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Edit order modal ────────────────────────────────────────────────── */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-evergreen/30 backdrop-blur-sm"
+            onClick={() => setShowEditModal(false)}
+          />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-bold text-evergreen">Editar Pedido</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-text-muted hover:text-evergreen"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="flex flex-col gap-5">
+              {/* Delivery date */}
+              <div>
+                <label className="label-craft">Fecha de entrega</label>
+                <input
+                  type="date"
+                  value={editDeliveryDate}
+                  onChange={(e) => setEditDeliveryDate(e.target.value)}
+                  className="input-craft"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="label-craft">Notas generales</label>
+                <textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Detalles adicionales del pedido..."
+                  className="input-craft resize-none"
+                />
+              </div>
+
+              {/* Items */}
+              <div>
+                <p className="label-craft mb-2">Ítems del pedido</p>
+                <div className="flex flex-col gap-3">
+                  {editItems.map((item, idx) => (
+                    <div key={item.id || idx} className="p-3 bg-surface-container-low rounded-xl flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => updateEditItem(idx, 'name', e.target.value)}
+                          placeholder="Nombre del ítem"
+                          className="input-craft flex-1 text-sm"
+                        />
+                        {editItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeEditItem(idx)}
+                            className="p-1.5 text-text-muted hover:text-red-400 transition-colors flex-shrink-0"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Cantidad</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateEditItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                            className="input-craft text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Precio unitario</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.unitPrice}
+                              onChange={(e) => updateEditItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              className="input-craft pl-7 text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={item.customizationDetails}
+                        onChange={(e) => updateEditItem(idx, 'customizationDetails', e.target.value)}
+                        placeholder="Detalles de personalización (opcional)"
+                        className="input-craft text-xs"
+                      />
+                      {/* Row subtotal */}
+                      <p className="text-xs font-bold text-evergreen text-right">
+                        Subtotal: {formatARS(item.quantity * item.unitPrice)}
+                      </p>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addEditItem}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-mauve hover:text-evergreen transition-colors py-1"
+                  >
+                    <Plus size={14} />
+                    Agregar ítem
+                  </button>
+                </div>
+                {/* New total preview */}
+                <div className="mt-3 pt-3 border-t border-[#eedddb]/60 flex justify-between items-center">
+                  <span className="text-sm text-text-muted">Nuevo total estimado</span>
+                  <span className="text-sm font-bold text-evergreen">
+                    {formatARS(editItems.reduce((s, it) => s + it.quantity * it.unitPrice, 0))}
+                  </span>
+                </div>
+              </div>
+
+              {updateOrderMutation.isError && (
+                <p className="text-xs text-red-500">
+                  {(updateOrderMutation.error as Error)?.message || 'Error al guardar los cambios'}
+                </p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={updateOrderMutation.isPending}
+                  className="btn-primary flex-1 justify-center"
+                  id="btn-guardar-edicion-pedido"
+                >
+                  <Save size={14} />
+                  {updateOrderMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="btn-secondary"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Delete confirm modal ─────────────────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-evergreen/30 backdrop-blur-sm"
+            onClick={() => setShowDeleteConfirm(false)}
+          />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-3">
+                <Trash2 size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-base font-bold text-evergreen mb-1">¿Eliminar este pedido?</h3>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Esto eliminará el pedido de <strong>{clientName}</strong> y todas sus transacciones registradas. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            {deleteMutation.isError && (
+              <p className="text-xs text-red-500 text-center mb-3">
+                {(deleteMutation.error as Error)?.message || 'Error al eliminar el pedido'}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full bg-red-400 hover:bg-red-500 text-white font-semibold text-sm transition-all disabled:opacity-60"
+                id="btn-confirmar-eliminar-pedido"
+              >
+                <Trash2 size={14} />
+                {deleteMutation.isPending ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

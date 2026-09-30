@@ -33,6 +33,12 @@ export interface PayBalanceDTO {
   notes?: string;
 }
 
+export interface UpdateOrderDTO {
+  notes?: string;
+  deliveryDate?: string | null;
+  items?: OrderItemInput[];
+}
+
 export class OrderService {
   // --- Customers Directory ---
   async getAllCustomers() {
@@ -245,6 +251,69 @@ export class OrderService {
       });
 
       return updatedOrder;
+    });
+  }
+
+  async deleteOrder(id: string) {
+    // Verify order exists
+    await this.getOrderById(id);
+    // Delete cascades via prisma schema (items, transactions via onDelete)
+    return prisma.order.delete({ where: { id } });
+  }
+
+  async updateOrder(id: string, data: UpdateOrderDTO) {
+    const existing = await this.getOrderById(id);
+
+    return prisma.$transaction(async (tx) => {
+      // Update items if provided
+      if (data.items !== undefined) {
+        // Delete old items
+        await tx.orderItem.deleteMany({ where: { orderId: id } });
+
+        // Recalculate total
+        const newTotal = data.items.reduce(
+          (acc, item) => acc + item.quantity * item.unitPrice,
+          0
+        );
+
+        // How much has already been paid (paid = total - balance)
+        const alreadyPaid = Number(existing.totalAmount) - Number(existing.balanceAmount);
+        const newBalance = Math.max(0, Number((newTotal - alreadyPaid).toFixed(2)));
+
+        return tx.order.update({
+          where: { id },
+          data: {
+            totalAmount: newTotal,
+            balanceAmount: newBalance,
+            notes: data.notes !== undefined ? data.notes : existing.notes,
+            deliveryDate: data.deliveryDate !== undefined
+              ? (data.deliveryDate ? new Date(data.deliveryDate) : null)
+              : existing.deliveryDate,
+            items: {
+              create: data.items.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                catalogItemId: item.catalogItemId || null,
+                customizationDetails: item.customizationDetails || null,
+              })),
+            },
+          },
+          include: { customer: true, items: true, transactions: true },
+        });
+      }
+
+      // Only update metadata
+      return tx.order.update({
+        where: { id },
+        data: {
+          notes: data.notes !== undefined ? data.notes : existing.notes,
+          deliveryDate: data.deliveryDate !== undefined
+            ? (data.deliveryDate ? new Date(data.deliveryDate) : null)
+            : existing.deliveryDate,
+        },
+        include: { customer: true, items: true, transactions: true },
+      });
     });
   }
 }

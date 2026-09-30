@@ -31,4 +31,23 @@ export const orderApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  deleteOrder: (id: string) =>
+    apiClient<{ success: boolean; message: string }>(`/orders/${id}`, { method: 'DELETE' }),
+  updateOrder: (
+    id: string,
+    data: {
+      notes?: string;
+      deliveryDate?: string | null;
+      items?: Array<{
+        name: string;
+        quantity: number;
+        unitPrice: number;
+        customizationDetails?: string;
+      }>;
+    }
+  ) =>
+    apiClient<Order>(`/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 };

@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Plus, Trash2, Calculator, ArrowRight, Save, TrendingUp, Sliders, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Calculator, ArrowRight, Save, TrendingUp, Sliders, ArrowLeft, CheckCircle2, Pencil, Check, X } from 'lucide-react';
 
 // ── Catalog presets ───────────────────────────────────────────────────────
-const CATALOG = [
+const DEFAULT_CATALOG = [
   { id: 'c1', name: 'Llavero mini',          category: 'Llaveros',            baseHours: 1,   baseMaterials: 300  },
   { id: 'c2', name: 'Amigurumi pequeño',     category: 'Amigurumis General',  baseHours: 3,   baseMaterials: 800  },
   { id: 'c3', name: 'Amigurumi mediano',     category: 'Amigurumis General',  baseHours: 6,   baseMaterials: 1500 },
@@ -13,6 +13,14 @@ const CATALOG = [
   { id: 'c7', name: 'Mascota personalizada', category: 'Mascotas',            baseHours: 9,   baseMaterials: 2200 },
   { id: 'c8', name: 'Accesorio especial',    category: 'Otras',               baseHours: 4,   baseMaterials: 1200 },
 ];
+
+interface CatalogItem {
+  id: string;
+  name: string;
+  category: string;
+  baseHours: number;
+  baseMaterials: number;
+}
 
 // ── Complexity levels with default margin % ───────────────────────────────
 interface ComplexityLevel {
@@ -68,6 +76,131 @@ function formatARS(n: number) {
   return `$${Math.round(n).toLocaleString('es-AR')}`;
 }
 
+// ── CatalogEditCard ────────────────────────────────────────────────────────
+function CatalogEditCard({
+  item,
+  isSelected,
+  onSelect,
+  onUpdate,
+}: {
+  item: CatalogItem;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onUpdate: (id: string, field: keyof CatalogItem, value: string | number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(item.name);
+  const [draftHours, setDraftHours] = useState(String(item.baseHours));
+  const [draftMaterials, setDraftMaterials] = useState(String(item.baseMaterials));
+
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDraftName(item.name);
+    setDraftHours(String(item.baseHours));
+    setDraftMaterials(String(item.baseMaterials));
+    setEditing(true);
+  }
+
+  function handleSave(e: React.MouseEvent) {
+    e.stopPropagation();
+    onUpdate(item.id, 'name', draftName.trim() || item.name);
+    onUpdate(item.id, 'baseHours', parseFloat(draftHours) || item.baseHours);
+    onUpdate(item.id, 'baseMaterials', parseFloat(draftMaterials) || item.baseMaterials);
+    setEditing(false);
+  }
+
+  function handleCancel(e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div
+        className={`p-3 rounded-xl border-2 text-left transition-all ${
+          isSelected ? 'border-mauve bg-peony/40' : 'border-mauve/50 bg-peony/20'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          type="text"
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          className="w-full text-xs font-bold text-evergreen bg-white border border-[#eedddb] rounded-lg px-2 py-1 mb-2 focus:outline-none focus:border-mauve"
+          placeholder="Nombre"
+          autoFocus
+        />
+        <div className="grid grid-cols-2 gap-1 mb-2">
+          <div>
+            <p className="text-[9px] text-text-muted uppercase font-semibold mb-0.5">Horas</p>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={draftHours}
+              onChange={(e) => setDraftHours(e.target.value)}
+              className="w-full text-xs bg-white border border-[#eedddb] rounded-lg px-2 py-1 focus:outline-none focus:border-mauve"
+            />
+          </div>
+          <div>
+            <p className="text-[9px] text-text-muted uppercase font-semibold mb-0.5">Materiales $</p>
+            <input
+              type="number"
+              min="0"
+              value={draftMaterials}
+              onChange={(e) => setDraftMaterials(e.target.value)}
+              className="w-full text-xs bg-white border border-[#eedddb] rounded-lg px-2 py-1 focus:outline-none focus:border-mauve"
+            />
+          </div>
+        </div>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg bg-mauve/20 text-evergreen hover:bg-mauve/30 transition-colors text-[10px] font-bold"
+          >
+            <Check size={10} />
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="flex items-center justify-center px-2 py-1 rounded-lg bg-surface-container text-text-muted hover:bg-surface-container-high transition-colors text-[10px]"
+          >
+            <X size={10} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item.id)}
+      className={`p-3 rounded-xl border-2 text-left transition-all relative group ${
+        isSelected
+          ? 'border-mauve bg-peony/40'
+          : 'border-[#eedddb] bg-white hover:border-mauve/40 hover:bg-peony/20'
+      }`}
+    >
+      <p className="text-xs font-bold text-evergreen truncate pr-5">{item.name}</p>
+      <p className="text-xs text-text-muted">{item.baseHours}h · {formatARS(item.baseMaterials)}</p>
+      {/* Edit icon — visible on hover */}
+      <span
+        role="button"
+        tabIndex={0}
+        aria-label={`Editar ${item.name}`}
+        onClick={handleOpen}
+        onKeyDown={(e) => e.key === 'Enter' && handleOpen(e as any)}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-mauve/20 text-text-muted hover:text-mauve cursor-pointer"
+      >
+        <Pencil size={11} />
+      </span>
+    </button>
+  );
+}
+
 export function QuotePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -84,6 +217,9 @@ export function QuotePage() {
   const [materials, setMaterials] = useState<MaterialLine[]>([
     { id: genId(), desc: 'Lana principal', cost: '' },
   ]);
+
+  // Catalog state (editable)
+  const [catalog, setCatalog] = useState<CatalogItem[]>(DEFAULT_CATALOG);
 
   // Si cambia el query param (navegación directa), sincronizar
   useEffect(() => {
@@ -120,15 +256,31 @@ export function QuotePage() {
     setMaterials(p => p.map(m => m.id === id ? { ...m, [key]: val } : m));
   }
 
+  function handleCatalogUpdate(id: string, field: keyof CatalogItem, value: string | number) {
+    setCatalog(prev =>
+      prev.map(c => c.id === id ? { ...c, [field]: value } : c)
+    );
+    // If this preset is currently selected, re-apply updated values
+    if (selectedPreset === id) {
+      const updated = catalog.map(c => c.id === id ? { ...c, [field]: value } : c).find(c => c.id === id);
+      if (updated) {
+        if (field === 'baseHours') setHours(String(value));
+        if (field === 'baseMaterials') {
+          setMaterials([{ id: genId(), desc: 'Materiales estimados', cost: String(value) }]);
+        }
+      }
+    }
+  }
+
   const applyPreset = useCallback((id: string) => {
-    const preset = CATALOG.find(c => c.id === id);
+    const preset = catalog.find(c => c.id === id);
     if (!preset) return;
     setSelectedPreset(id);
     // Solo pre-carga el nombre si no hay pedido vinculado
     if (!linkedOrderId) setProjectName(preset.name);
     setHours(String(preset.baseHours));
     setMaterials([{ id: genId(), desc: 'Materiales estimados', cost: String(preset.baseMaterials) }]);
-  }, [linkedOrderId]);
+  }, [linkedOrderId, catalog]);
 
   function handleSelectComplexity(complexityId: string) {
     setSelectedComplexity(complexityId);
@@ -222,22 +374,25 @@ export function QuotePage() {
         <div className="xl:col-span-3 flex flex-col gap-5">
           {/* Catalog presets */}
           <div className="card-craft p-6">
-            <h2 className="text-sm font-bold text-evergreen mb-3">Empezar desde el catálogo</h2>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-bold text-evergreen">Empezar desde el catálogo</h2>
+              <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                <Pencil size={10} />
+                Pasá el cursor para editar
+              </span>
+            </div>
+            <p className="text-xs text-text-muted mb-3">
+              Hacé clic en un preset para cargarlo, o editá sus valores con el ícono de lápiz.
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {CATALOG.map(c => (
-                <button
+              {catalog.map(c => (
+                <CatalogEditCard
                   key={c.id}
-                  type="button"
-                  onClick={() => applyPreset(c.id)}
-                  className={`p-3 rounded-xl border-2 text-left transition-all
-                    ${selectedPreset === c.id
-                      ? 'border-mauve bg-peony/40'
-                      : 'border-[#eedddb] bg-white hover:border-mauve/40 hover:bg-peony/20'
-                    }`}
-                >
-                  <p className="text-xs font-bold text-evergreen truncate">{c.name}</p>
-                  <p className="text-xs text-text-muted">{c.baseHours}h · {formatARS(c.baseMaterials)}</p>
-                </button>
+                  item={c}
+                  isSelected={selectedPreset === c.id}
+                  onSelect={applyPreset}
+                  onUpdate={handleCatalogUpdate}
+                />
               ))}
             </div>
           </div>
@@ -356,7 +511,7 @@ export function QuotePage() {
             </div>
           </div>
 
-          {/* ── NEW: Complexity & Profit Margin ── */}
+          {/* ── Complexity & Profit Margin ── */}
           <div className="card-craft p-6">
             <h2 className="text-sm font-bold text-evergreen mb-1 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-peony flex items-center justify-center text-xs font-bold text-evergreen">4</span>
