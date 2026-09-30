@@ -173,3 +173,17 @@ model AppConfig {
 
   @@map("app_configs")
 }
+
+model PriceListItem {
+  id        String   @id @default(uuid())
+  name      String
+  category  String
+  minPrice  Decimal  @db.Decimal(10, 2)
+  maxPrice  Decimal  @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("price_list_items")
+}
+

@@ -6,6 +6,7 @@ import {
   Wallet,
   Hash,
   ShoppingBag,
+  Tag,
   PanelLeftClose,
   X,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/pedidos', label: 'Pedidos', icon: ReceiptText },
   { to: '/cotizador', label: 'Cotizador', icon: Calculator },
+  { to: '/lista-precios', label: 'Lista de Precios', icon: Tag },
   { to: '/finanzas', label: 'Finanzas', icon: Wallet },
   { to: '/venta-rapida', label: 'Venta Rápida', icon: ShoppingBag },
   { to: '/contador', label: 'Contador', icon: Hash },
